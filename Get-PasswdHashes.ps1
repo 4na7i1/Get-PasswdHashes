@@ -126,7 +126,7 @@ function LoadApi{
 
 
 function Get-BootKey{
-    $s = [string]::Join("",$("JD","Skew1","GBG","Data" | ForEach-Object{Get-RegKeyClass "HKLM" "SYSTEM\CurrentControlSet\Control\Lsa\$_"})); #LSA Key
+    $s = [string]::Join("",$("JD","Skew1","GBG","Data" | ForEach-Object{Get-RegKeyClass "HKLM" "SYSTEM\CurrentControlSet\Control\Lsa\$_"}));
     $bootkey = New-Object byte[] $($s.Length/2);
     0..$($bootkey.Length-1) | ForEach-Object{$bootkey[$_] = [Convert]::ToByte($s.Substring($($_*2),2),16)}
     # $b2 = New-Object byte[] 16;
