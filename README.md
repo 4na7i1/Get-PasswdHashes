@@ -29,9 +29,12 @@ In Windows operating systems, user account information and associated password h
 
 [R. Chandel, "Credential Dumping: SAM - Hacking Articles," Apr. 2020, .](https://www.hackingarticles.in/credential-dumping-sam/)
 
+### SAM Decryption Flow
+![SAM Decryption](SAM%20Decryption.png)
+
 ## Notes
-This script is based on various existing projects. Thank you!
-This script is for research purposes only. All activities conducted using this script must comply with legal and ethical regulations. You must also obtain the explicit permission of the system owner before using this script.
+This script is based on various existing projects. Thank you!  
+This script is for research purposes only. All activities conducted using this script must comply with legal and ethical regulations. You must also obtain the explicit permission of the system owner before using this script.  
 
 ## References
 The following resources were used as references in the development of this script.
